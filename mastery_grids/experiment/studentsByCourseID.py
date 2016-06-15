@@ -9,7 +9,7 @@ from copy import copy
 from utils.functions import *
 
 
-MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_27nov14???")
+MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
 
 
 #this function obtains current courses by date
