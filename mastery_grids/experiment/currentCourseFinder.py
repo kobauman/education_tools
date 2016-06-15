@@ -5,7 +5,6 @@ sys.path.append('../')
 import time
 import datetime
 from copy import copy
-from utils.functions import *
 
 
 MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
