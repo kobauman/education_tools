@@ -47,7 +47,7 @@ def courseFinder(MYSQL_PARAMS, requested_date = None):
     
     courses_list = copy(courses_info.values())
     courses_list.sort()
-    print('\n\n'.join(courses_list))
+    print('\n'.join(courses_list))
 
 
 

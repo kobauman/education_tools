@@ -25,7 +25,7 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
     query = 'SELECT startdate, fullname FROM mdl_course WHERE id = %d;'%requested_course
     cursor.execute(query)
     course = list(cursor.fetchall())[0]
-    print('Requested course is: %s, %s, starts: %s'%(requested_course, course[1], course[0]))
+    print('Requested course is: %d, %s, starts: %d'%(requested_course, course[1], course[0]))
         
     d = datetime.datetime.fromtimestamp(course[0]).strftime('%d-%m-%Y')
     start_day = course[0]
@@ -130,6 +130,6 @@ if __name__ == "__main__":
     Get the list of students with info for the given courseID 
     '''
     if len(sys.argv) > 1:
-        studentsByCourse(MYSQL_PARAMS, sys.argv[1])
+        studentsByCourse(MYSQL_PARAMS, int(sys.argv[1]))
     else:
         print("Appropriate format: python studentsByCourseID.py 826")
