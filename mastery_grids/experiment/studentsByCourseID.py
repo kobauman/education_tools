@@ -53,18 +53,18 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
                 mdl_enrol.courseid = %s;'''%requested_course
     cursor.execute(query)
     students = cursor.fetchall()
-    students_info = dict()
+    students_info = list()
     #iterate over enrolled students
     for studentID in students:
-        student = {'studentid':studentID[0]}
-        #get name, email, country
-        query = "SELECT id, email, firstname, lastname FROM mdl_user WHERE id = %d;"%studentID[0]
+        studentid = int(studentID[0])
+	student = {'studentid':studentid}
+        query = "SELECT id, email, firstname, lastname FROM mdl_user WHERE id = %d;"%studentid
         cursor.execute(query);
         info = list(cursor.fetchall())[0]
         student['email'] = info[1].decode('utf8', 'ignore')
         student['firstname'] = info[2].decode('utf8', 'ignore')
         student['lastname'] = info[3].decode('utf8', 'ignore')
-        print('Working on ',studentID[0],student['email'],student['firstname'],student['lastname'])
+        print('Working on ',studentid,student['email'],student['firstname'],student['lastname'])
         
         # collect all prior final exams (grade > 0)
         query = '''SELECT 
@@ -79,11 +79,11 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
         AND
         mdl_grade_items.itemmodule LIKE 'quiz'
         AND
-        mdl_grade_items.itemname LIKE 'Final%'
+        mdl_grade_items.itemname LIKE 'Final%%'
         AND
         mdl_grade_grades.rawgrade > 0
         AND
-        mdl_grade_grades.userid = %d;'''%studentID[0]
+        mdl_grade_grades.userid = %d;'''%studentid
         cursor.execute(query)
         courses = cursor.fetchall()
         # courseID -> grade
@@ -93,30 +93,38 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
             student_history.append({'grade':course[1],'courseid':course[2],
                                     'coursename':course[3],'coursestart':course[4]})
         student_history = pd.DataFrame(student_history)
-        student_history = student_history.loc[student_history['coursestart'] > start_day - 100]
+        if len(student_history) == 0:
+		student['allPrior']=None
+		student['lastPrior']=None
+		student['CSPrior']=None
+		student['lastCSPrior']=None
+	else:
+		student_history = student_history.loc[student_history['coursestart'] < start_day - 100]
         
-        #1) all prior courses
-        student['allPrior'] = student_history['grade'].mean()
-        #2) last course
-        lastStart = student_history['coursestart'].max()
-        student['lastPrior'] = student_history.loc[student_history['coursestart']==lastStart]['grade'].mean()
+        	#1) all prior courses
+        	student['allPrior'] = student_history['grade'].mean()
+        	#print(student_history)
+		#2) last course
+        	lastStart = student_history['coursestart'].max()
+        	student['lastPrior'] = student_history.loc[student_history['coursestart']==lastStart]['grade'].mean()
         
-        #3) all prior CS courses
-        #4) last CS course
-        student_CS_history = student_history.loc[student_history.apply(lambda x:'CS' in x['coursename'],axis=1)]
-        if len(student_CS_history) == 0:
-            student['CSPrior'] = None
-            student['lastCSPrior'] = None
-        else:   
-            student['CSPrior'] = student_CS_history['grade'].mean()
-            lastCSStart = student_CS_history['coursestart'].max()
-            student['lastCSPrior'] = student_CS_history.loc[student_CS_history['coursestart']==lastCSStart]['grade'].mean()
-            
+        	#3) all prior CS courses
+        	#4) last CS course
+        	student_CS_history = student_history[student_history.apply(lambda x:'CS' in x['coursename'],axis=1)]
+        	if len(student_CS_history) == 0:
+            		student['CSPrior'] = None
+            		student['lastCSPrior'] = None
+        	else:   
+            		student['CSPrior'] = student_CS_history['grade'].mean()
+            		lastCSStart = student_CS_history['coursestart'].max()
+            		student['lastCSPrior'] = student_CS_history.loc[student_CS_history['coursestart']==lastCSStart]['grade'].mean()
+	#print(student)
+	students_info.append(student)           
     print('Number of Student: %d'%len(students_info))
              
     #save
     students_df = pd.DataFrame(students_info)
-    students_df.to_csv('../data/course2students/'+requested_course+'.csv',index=False)
+    students_df.to_csv('../data/course2students/'+str(requested_course)+'_students.csv',index=False)
         
        
     # disconnect from server
