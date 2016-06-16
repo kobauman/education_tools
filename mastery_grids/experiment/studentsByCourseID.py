@@ -2,17 +2,18 @@
 import MySQLdb
 import sys
 sys.path.append('../')
-import nltk
-import time
 import datetime
-from copy import copy
-from utils.functions import *
+import pandas as pd
 
+MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_4nov14")
+#MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
 
-MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
-
-
-#this function obtains current courses by date
+#this function obtains the list of students assigned to the course
+#with their prior performance
+#1) all prior courses
+#2) all prior CS courses
+#3) last course
+#4) last CS course
 def studentsByCourse(MYSQL_PARAMS, requested_course = None):
     # Open database connection
     a,b,c,d = MYSQL_PARAMS
@@ -20,89 +21,115 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
     # prepare a cursor object using cursor() method
     cursor = db.cursor()
     
-    #days of courses stars
-    start_days = dict()
-    
-    try:
-        requested_timestamp = time.mktime(datetime.datetime.strptime(requested_date, "%d/%m/%Y").timetuple())
-    except:
-        requested_timestamp = time.time()
-    print('requested date is: %s'%datetime.datetime.fromtimestamp(requested_timestamp).strftime('%d-%m-%Y'))
-    query = 'SELECT id, fullname, startdate, visible FROM mdl_course WHERE startdate < %d;'%requested_timestamp
+    # identify starting date
+    query = 'SELECT startdate, fullname FROM mdl_course WHERE id = %d;'%requested_course
     cursor.execute(query)
-    courses = cursor.fetchall()
-    courses_info = dict()
-    #iterate over courses in the base
-    for course in courses:
-        # check if the course started recently
-        if requested_timestamp - course[2] < 5443200:
-            d = datetime.datetime.fromtimestamp(course[2]).strftime('%d-%m-%Y')
-            start_days[course[0]] = datetime.datetime.strptime(d, '%d-%m-%Y')
-            courses_info[course[0]] = '|%-60s| %d | %s |'%(course[1],course[0],d)
+    course = list(cursor.fetchall())[0]
+    print('Requested course is: %s, %s, starts: %s'%(requested_course, course[1], course[0]))
+        
+    d = datetime.datetime.fromtimestamp(course[0]).strftime('%d-%m-%Y')
+    start_day = course[0]
+    print(datetime.datetime.strptime(d, '%d-%m-%Y'))
+    
+    
+#     #days of courses stars
+#     start_days = dict()
+#     query = 'SELECT id, fullname, startdate, visible FROM mdl_course;'
+#     cursor.execute(query)
+#     courses = cursor.fetchall()
+#     courses_info = dict()
+#     #iterate over courses in the base
+#     for course in courses:
+#         start_days[course[0]] = (course[0],course[2])
+    
+    
+    # identify the list of enrolled students
+    query = '''SELECT mdl_user_enrolments.userid
+                FROM
+                mdl_enrol, mdl_user_enrolments
+                WHERE
+                mdl_enrol.id = mdl_user_enrolments.enrolid
+                AND
+                mdl_enrol.courseid = %s;'''%requested_course
+    cursor.execute(query)
+    students = cursor.fetchall()
+    students_info = dict()
+    #iterate over enrolled students
+    for studentID in students:
+        student = {'studentid':studentID[0]}
+        #get name, email, country
+        query = "SELECT id, email, firstname, lastname FROM mdl_user WHERE id = %d;"%studentID[0]
+        cursor.execute(query);
+        info = list(cursor.fetchall())[0]
+        student['email'] = info[1].decode('utf8', 'ignore')
+        student['firstname'] = info[2].decode('utf8', 'ignore')
+        student['lastname'] = info[3].decode('utf8', 'ignore')
+        print('Working on ',studentID[0],student['email'],student['firstname'],student['lastname'])
+        
+        # collect all prior final exams (grade > 0)
+        query = '''SELECT 
+        mdl_grade_grades.userid, mdl_grade_grades.rawgrade, 
+        mdl_grade_items.courseid, mdl_course.fullname, mdl_course.startdate
+        FROM
+        mdl_grade_grades, mdl_grade_items, mdl_course
+        WHERE 
+        mdl_grade_grades.itemid = mdl_grade_items.id
+        AND
+        mdl_course.id = mdl_grade_items.courseid
+        AND
+        mdl_grade_items.itemmodule LIKE 'quiz'
+        AND
+        mdl_grade_items.itemname LIKE 'Final%'
+        AND
+        mdl_grade_grades.rawgrade > 0
+        AND
+        mdl_grade_grades.userid = %d;'''%studentID[0]
+        cursor.execute(query)
+        courses = cursor.fetchall()
+        # courseID -> grade
+        student_history = list()
+        #iterate over enrolled students
+        for course in courses:
+            student_history.append({'grade':course[1],'courseid':course[2],
+                                    'coursename':course[3],'coursestart':course[4]})
+        student_history = pd.DataFrame(student_history)
+        student_history = student_history.loc[student_history['coursestart'] > start_day - 100]
+        
+        #1) all prior courses
+        student['allPrior'] = student_history['grade'].mean()
+        #2) last course
+        lastStart = student_history['coursestart'].max()
+        student['lastPrior'] = student_history.loc[student_history['coursestart']==lastStart]['grade'].mean()
+        
+        #3) all prior CS courses
+        #4) last CS course
+        student_CS_history = student_history.loc[student_history.apply(lambda x:'CS' in x['coursename'],axis=1)]
+        if len(student_CS_history) == 0:
+            student['CSPrior'] = None
+            student['lastCSPrior'] = None
+        else:   
+            student['CSPrior'] = student_CS_history['grade'].mean()
+            lastCSStart = student_CS_history['coursestart'].max()
+            student['lastCSPrior'] = student_CS_history.loc[student_CS_history['coursestart']==lastCSStart]['grade'].mean()
             
-    print('Number of Courses: %d'%len(courses_info))
+    print('Number of Student: %d'%len(students_info))
              
-    # find number of students that finished at least one assignment         
-    for courseID in courses_info:
-        #searching for course grade Items
-        query = 'SELECT id FROM  mdl_grade_items WHERE itemmodule LIKE \'quiz\' AND courseid = %d;'%courseID
-        cursor.execute(query)
-        grade_items = cursor.fetchall()
-            
-        students_set = set([])
-        for grade_i in grade_items:
-            #grades
-            query = "SELECT userid, rawgrade FROM  mdl_grade_grades WHERE itemid = %d;"%grade_i[0]
-            cursor.execute(query);
-            students_grades = cursor.fetchall();
-            for grade in students_grades:
-                students_set.add(grade[0])
-        
-        courses_info[courseID] += ' students = %3d |'%len(students_set)
-        #courses_info[courseID] = courses_info[courseID].split(' ')[0]+'| %3d |'%len(students_set)
-        
-    # find MidTerm and number of its week
-    for courseID in courses_info:
-        #searching for course grade Items
-        query = "SELECT itemname, iteminstance FROM  mdl_grade_items WHERE itemmodule LIKE 'quiz' AND courseid = %d;"%courseID
-        cursor.execute(query)
-        grade_items = cursor.fetchall()
-            
-        midterm_list = list()
-        for grade_i in grade_items:
-            if  unitNumberByName(grade_i[0]) in [0,1,2,3,4,5,6,7,8,9,10,20,0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,20.5]:
-                query = "SELECT name,timeopen,timeclose FROM  mdl_quiz WHERE id = %d;"%grade_i[1]
-                cursor.execute(query);
-                quizes = cursor.fetchall();
-                for quiz in quizes:
-                    timeopen = datetime.datetime.fromtimestamp(quiz[1])
-                    difopen = (timeopen - start_days[courseID]).days
-                    timeclose = datetime.datetime.fromtimestamp(quiz[2])
-                    difclose = (timeclose - start_days[courseID]).days
-                    midterm_list.append('%-20s:from %s(%d) to %s(%s)'%(quiz[0],timeopen.strftime('%d-%m'),difopen,timeclose.strftime('%d-%m'),difclose))
-        
-        midterm_list.sort(reverse=False)
-        if midterm_list:
-            courses_info[courseID] += '\n%s\n'%'\n'.join(midterm_list)
+    #save
+    students_df = pd.DataFrame(students_info)
+    students_df.to_csv('../data/course2students/'+requested_course+'.csv',index=False)
         
        
     # disconnect from server
     db.close()
     print("\nDONE\n")
-    
-    courses_list = copy(courses_info.values())
-    courses_list.sort()
-    print('\n\n'.join(courses_list))
-
 
 
 #run function
 if __name__ == "__main__":
     '''
-    Get the list of courses (id, name) for the given date 
+    Get the list of students with info for the given courseID 
     '''
     if len(sys.argv) > 1:
-        courseFinder(MYSQL_PARAMS, sys.argv[1])
+        studentsByCourse(MYSQL_PARAMS, sys.argv[1])
     else:
-        print "Appropriate format: 01/12/2011"
-        courseFinder(MYSQL_PARAMS)
+        print("Appropriate format: python studentsByCourseID.py 826")
