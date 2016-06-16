@@ -67,7 +67,7 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
         if 'Instructor' in student['LastName']:
             continue
         
-        print('Working on ',studentid,student['email'],student['firstname'],student['lastname'])
+        print('Working on ',studentid,student['PrimaryEmail'],student['FirstName'],student['LastName'])
         
         # collect all prior final exams (grade > 0)
         query = '''SELECT 
