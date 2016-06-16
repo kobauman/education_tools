@@ -121,8 +121,8 @@ def studentsByCourse(MYSQL_PARAMS, requested_course = None):
                     student['CSPrior'] = student_CS_history['grade'].mean()
                     lastCSStart = student_CS_history['coursestart'].max()
                     student['lastCSPrior'] = student_CS_history.loc[student_CS_history['coursestart']==lastCSStart]['grade'].mean()
-    #print(student)
-    students_info.append(student)           
+        #print(student)
+        students_info.append(student)           
     print('Number of Student: %d'%len(students_info))
              
     #save
