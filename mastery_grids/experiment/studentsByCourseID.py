@@ -5,8 +5,8 @@ sys.path.append('../')
 import datetime
 import pandas as pd
 
-MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_4nov14")
-#MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
+MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_june16_16")
+#MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_4nov14")
 
 #this function obtains the list of students assigned to the course
 #with their prior performance

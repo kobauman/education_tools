@@ -7,8 +7,8 @@ import datetime
 from copy import copy
 
 
-MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_4nov14")
-#MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_jan19_15")
+MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_june16_16")
+#MYSQL_PARAMS = ("localhost","root","mysqlpass","moodle_4nov14")
 
 
 #this function obtains current courses by date
