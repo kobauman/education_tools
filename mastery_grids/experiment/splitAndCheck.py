@@ -63,7 +63,8 @@ def splitStudents(courseID, logins):
         if significant(lastCSPrior1,lastCSPrior2):
             eqFlag = False
         print(np.average(lastCSPrior1),np.average(lastCSPrior2),significant(lastCSPrior1,lastCSPrior2))
-    
+        
+        print(df['expGroup'].value_counts())
     
     #assign logins
     logins1 = pd.DataFrame.from_csv('../data/logins/'+logins+'_1.csv',index_col=None)
